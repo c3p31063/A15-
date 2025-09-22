@@ -1,0 +1,27 @@
+<!doctype html>
+<html lang="ja"><head><meta charset="utf-8"><title>ダッシュボード</title>
+<style>
+  body{font-family:system-ui;margin:40px}
+  table{border-collapse:collapse;width:100%}
+  th,td{border:1px solid #ddd;padding:8px}
+  .lv-auto_pass{background:#e6ffed}
+  .lv-manual_review{background:#fff8db}
+  .lv-auto_block{background:#ffe6e6}
+  details{white-space:pre-wrap}
+</style></head><body>
+  <h1>判定ダッシュボード（最新50件）</h1>
+  <p><a href="/">← アップロードに戻る</a></p>
+  <table>
+    <tr><th>ID</th><th>種別</th><th>状態</th><th>スコア</th><th>レベル</th><th>作成</th></tr>
+    {% for j in jobs %}
+      <tr class="lv-{% if j.result %}{{ j.result.risk_level }}{% endif %}">
+	<td><a href="/job/{{ j.id }}/">#{{ j.id }}</a></td>
+        <td>{{ j.kind }}</td>
+        <td>{{ j.status }}</td>
+        <td>{% if j.result %}{{ j.result.risk_score_total }}{% endif %}</td>
+        <td>{% if j.result %}{{ j.result.risk_level }}{% endif %}</td>
+        <td>{{ j.created_at }}</td>
+      </tr>
+    {% endfor %}
+  </table>
+</body></html>
