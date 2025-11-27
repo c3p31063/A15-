@@ -1,0 +1,80 @@
+{% extends "core/base.html" %}
+{% load static %}
+
+{% block title %}ログイン | 生成AI画像著作権リスクチェック{% endblock %}
+
+{% block content %}
+<div class="container py-5">
+  <div class="row justify-content-center">
+    <div class="col-md-6 col-lg-5">
+      <div class="card shadow-sm border-0">
+        <div class="card-body p-4">
+          <h1 class="h4 mb-4 text-center">ログイン</h1>
+
+          {# メッセージ (エラーなど) #}
+          {% if messages %}
+            {% for message in messages %}
+              <div class="alert alert-{{ message.tags }} mb-3" role="alert">
+                {{ message }}
+              </div>
+            {% endfor %}
+          {% endif %}
+
+          {# ★ ここを 'login' ではなく 'core:login' にする ★ #}
+          <form method="post" action="{% url 'core:login' %}">
+            {% csrf_token %}
+
+            <div class="mb-3">
+              <label for="id_username" class="form-label">ユーザー名</label>
+              <input
+                type="text"
+                name="username"
+                class="form-control{% if form.username.errors %} is-invalid{% endif %}"
+                id="id_username"
+                required
+                value="{{ form.username.value|default_if_none:'' }}"
+              >
+              {% for error in form.username.errors %}
+                <div class="invalid-feedback">
+                  {{ error }}
+                </div>
+              {% endfor %}
+            </div>
+
+            <div class="mb-3">
+              <label for="id_password" class="form-label">パスワード</label>
+              <input
+                type="password"
+                name="password"
+                class="form-control{% if form.password.errors %} is-invalid{% endif %}"
+                id="id_password"
+                required
+              >
+              {% for error in form.password.errors %}
+                <div class="invalid-feedback">
+                  {{ error }}
+                </div>
+              {% endfor %}
+            </div>
+
+            <div class="d-grid">
+              <button type="submit" class="btn btn-primary">
+                ログイン
+              </button>
+            </div>
+          </form>
+
+          <div class="mt-3 text-center">
+            <small class="text-muted">
+              アカウントをお持ちでない場合は
+              <a href="{% url 'core:signup' %}">新規登録</a>
+              してください。
+            </small>
+          </div>
+
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}

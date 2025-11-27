@@ -1,0 +1,86 @@
+
+<!doctype html>
+<html lang="ja">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>ジョブ詳細 {{ job.id }}</title>
+  <style>
+    body{font-family:system-ui;margin:24px}
+    .grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:12px}
+    .card{border:1px solid #eaeaea;border-radius:10px;padding:8px}
+    .muted{color:#666;font-size:12px}
+    pre{white-space:pre-wrap;background:#f7f7f7;border:1px solid #eee;border-radius:8px;padding:8px}
+  </style>
+</head>
+<body>
+  <p><a href="/dashboard/">← ダッシュボードへ戻る</a></p>
+  <h1>ジョブ #{{ job.id }}</h1>
+  {% if job.risk_score_total is not None %}
+    <p>スコア: <strong>{{ job.risk_score_total }}</strong> / <span>{{ job.risk_level }}</span> / 閾値版: {{ job.threshold_version }}</p>
+  {% endif %}
+
+  {% if job.clip_dim %}
+    <h2>画像特徴量（CLIP）</h2>
+    <p>次元: {{ job.clip_dim }} / 正規化済みベクトル</p>
+    <details><summary>先頭20次元を表示</summary>
+      <pre>{{ job.clip_vector|slice:":20" }}</pre>
+    </details>
+  {% endif %}
+
+  {% if job.hashes %}
+    <h2>イメージハッシュ</h2>
+    <ul>
+      {% for k,v in job.hashes.items %}
+        <li>{{ k }}: <code>{{ v }}</code></li>
+      {% endfor %}
+    </ul>
+  {% endif %}
+
+  <h2>Evidence（詳細）</h2>
+  {% for e in evidences %}
+    <div class="card">
+      <div class="muted">#{{ forloop.counter }}</div>
+      {% if e.url %}<p>URL: <a href="{{ e.url }}" target="_blank" rel="noopener nofollow">{{ e.url }}</a></p>{% endif %}
+      {% if e.source %}<p class="muted">source: {{ e.source }}</p>{% endif %}
+      {% if e.score_numeric %}<p class="muted">score: {{ e.score_numeric }}</p>{% endif %}
+    </div>
+  {% empty %}
+    <p>Evidence はありません。</p>
+  {% endfor %}
+
+  {% if job.kind == "image" %}
+    <h2>ピックした類似画像</h2>
+    {% if simimgs %}
+      <div class="grid">
+        {% for s in simimgs %}
+          <div class="card">
+            <a href="{{ s.match_url }}" target="_blank" rel="noopener nofollow">
+              {% if s.thumbnail_url %}
+                <img src="{{ s.thumbnail_url }}" alt="thumb" style="width:100%;height:auto;border-radius:6px;">
+              {% else %}
+                <div style="height:140px;display:flex;align-items:center;justify-content:center;background:#f5f5f5;border-radius:6px;">No thumbnail</div>
+              {% endif %}
+            </a>
+            <div class="muted" style="margin-top:6px;">Rank: {{ s.rank }} / Score: {{ s.match_score }}</div>
+            <div style="margin-top:6px;word-break:break-all;">
+              <a href="{{ s.match_url }}" target="_blank" rel="noopener nofollow">{{ s.match_url }}</a>
+            </div>
+          </div>
+        {% endfor %}
+      </div>
+    {% else %}
+      <p>類似画像は登録されていません。</p>
+    {% endif %}
+  {% endif %}
+
+  <h2>出典ページ（リンク一覧）</h2>
+  <ul>
+    {% for e in evidences %}
+      {% if e.url %}<li><a href="{{ e.url }}" target="_blank" rel="noopener nofollow">{{ e.url }}</a></li>{% endif %}
+    {% empty %}
+      <li>出典ページは登録されていません。</li>
+    {% endfor %}
+  </ul>
+</body>
+</html>

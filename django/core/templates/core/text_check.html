@@ -1,0 +1,227 @@
+<!-- Path: django/core/templates/core/text_check.html -->
+{% extends "core/base.html" %}
+{% block title %}テキストチェック - A15{% endblock %}
+
+{% block content %}
+<div class="card">
+  <h1>テキストチェック</h1>
+  <p class="muted mt-2">
+    生成AIで作成した文章や、外部サイトの記事など「著作権リスクが気になるテキスト」を貼り付けてチェックします。
+  </p>
+
+  <form method="post" class="mt-3">
+    {% csrf_token %}
+
+    <div class="mb-3">
+      <label for="id_input_text">チェック対象テキスト</label>
+      <textarea
+        id="id_input_text"
+        name="input_text"
+        rows="8"
+        class="form-control"
+        placeholder="ここにチェックしたいテキストを貼り付けてください"
+        required
+      >{{ form.input_text.value|default_if_none:"" }}</textarea>
+      <div class="form-text">
+        ※ 最大文字数などはバックエンド側の制限に依存します。
+      </div>
+    </div>
+
+    <div class="mb-3">
+      <label for="id_memo">メモ（任意）</label>
+      <input
+        id="id_memo"
+        type="text"
+        name="memo"
+        class="form-control"
+        placeholder="このチェックの目的や案件名など（任意）"
+        value="{{ form.memo.value|default_if_none:"" }}"
+      />
+    </div>
+
+    <div class="mt-3 d-flex justify-content-between align-items-center">
+      <button type="submit" class="btn btn-primary">
+        チェック実行
+      </button>
+      <span class="text-muted small">
+        ※ 実行すると FastAPI サーバーにリクエストし、結果を表示します。
+      </span>
+    </div>
+  </form>
+</div>
+
+{% if result %}
+  <div class="card mt-4">
+    <h2>チェック結果</h2>
+
+    <p class="mt-2">
+      <strong>総合リスクスコア:</strong>
+      {{ result.risk_score|default_if_none:"-"|floatformat:1 }} / 100
+    </p>
+
+    <p>
+      <strong>リスクレベル:</strong>
+      {% if result.risk_level == "高" %}
+        🔴 高（要注意）
+      {% elif result.risk_level == "中" %}
+        🟡 中（要確認）
+      {% elif result.risk_level == "低" %}
+        🟢 低（問題小）
+      {% else %}
+        {{ result.risk_level|default:"-" }}
+      {% endif %}
+    </p>
+
+    {% with factors=result.risk_factors %}
+      {% if factors %}
+        <h3 class="mt-3">スコア内訳</h3>
+        <table class="table mt-2">
+          <tbody>
+            <tr>
+              <th>盗用・類似度（最大）</th>
+              <td>
+                {{ factors.plagiarism_max_similarity|default_if_none:"-"|floatformat:1 }} / 100
+              </td>
+            </tr>
+            <tr>
+              <th>AI 生成らしさ</th>
+              <td>
+                {{ factors.ai_likeness|default_if_none:"-"|floatformat:1 }} / 100
+              </td>
+            </tr>
+            <tr>
+              <th>不適切表現スコア</th>
+              <td>
+                {{ factors.moderation_score|default_if_none:"-"|floatformat:1 }} / 100
+              </td>
+            </tr>
+            <tr>
+              <th>手動調整</th>
+              <td>
+                {{ factors.manual_adjustment|default_if_none:"-"|floatformat:1 }}
+              </td>
+            </tr>
+          </tbody>
+        </table>
+      {% endif %}
+    {% endwith %}
+
+    {% if warnings %}
+      <div class="alert alert-warning mt-3" role="alert">
+        <strong>警告 / 注意事項:</strong>
+        <ul class="mb-0">
+          {% for w in warnings %}
+            <li>{{ w }}</li>
+          {% endfor %}
+        </ul>
+      </div>
+    {% endif %}
+  </div>
+
+  <div class="card mt-4">
+    <h2>詳細情報</h2>
+
+    <h3 class="mt-3">入力テキスト</h3>
+    <pre style="white-space: pre-wrap; word-break: break-all;">{{ result.text }}</pre>
+
+    <h3 class="mt-4">盗用・類似チェック結果</h3>
+    {% if result.plagiarism_matches %}
+      <table class="table mt-2">
+        <thead>
+          <tr>
+            <th>類似度</th>
+            <th>タイトル / 抜粋</th>
+            <th>リンク</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for m in result.plagiarism_matches %}
+            <tr>
+              <td>{{ m.similarity|default_if_none:"-"|floatformat:1 }} / 100</td>
+              <td>
+                {{ m.title|default_if_none:"(タイトルなし)" }}<br />
+                <small class="text-muted">{{ m.snippet|default_if_none:"" }}</small>
+              </td>
+              <td>
+                {% if m.url %}
+                  <a href="{{ m.url }}" target="_blank" rel="noopener noreferrer">
+                    開く
+                  </a>
+                {% else %}
+                  -
+                {% endif %}
+              </td>
+            </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    {% else %}
+      <p class="mt-3">類似文章は検出されませんでした。</p>
+    {% endif %}
+  </div>
+
+  {# ここから下は FastAPI 生レスポンスのサマリ表示（必要なら） #}
+  {% with raw=result.plagiarism_raw %}
+    {% if raw %}
+      <div class="card mt-4">
+        <h2>Plagiarism API 生レスポンス（一部）</h2>
+        <pre style="white-space: pre-wrap; word-break: break-all;">
+{{ raw|safe }}
+        </pre>
+      </div>
+    {% endif %}
+  {% endwith %}
+
+  {% with moderation=result.moderation %}
+    {% if moderation %}
+      <div class="card mt-4">
+        <h2>モデレーション詳細</h2>
+        <p>
+          <strong>flagged:</strong>
+          {{ moderation.flagged|yesno:"Yes,No" }}
+        </p>
+        {% if moderation.categories %}
+          <table class="table mt-2">
+            <thead>
+              <tr>
+                <th>カテゴリ</th>
+                <th>スコア</th>
+              </tr>
+            </thead>
+            <tbody>
+              {% for cat in moderation.categories %}
+                <tr>
+                  <td>{{ cat.name }}</td>
+                  <td>{{ cat.score|default_if_none:"-"|floatformat:2 }}</td>
+                </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        {% endif %}
+      </div>
+    {% endif %}
+  {% endwith %}
+
+  {% if extra and extra.debug %}
+    <div class="card mt-4">
+      <h2>デバッグ情報</h2>
+      <pre style="white-space: pre-wrap; word-break: break-all;">{{ extra.debug }}</pre>
+    </div>
+  {% endif %}
+
+  <div class="card mt-4">
+    <h2>チェックログ</h2>
+    <p class="text-muted">
+      ※ Django 側のログ管理画面や一覧ページから、過去のチェック結果を参照できます。
+    </p>
+  </div>
+{% endif %}
+
+{# FastAPI 側の JSON をそのまま dump しておきたい場合の例（管理者向け） #}
+{% if raw_payload_json %}
+  <div class="card mt-4">
+    <h2>RAW レスポンス（デバッグ用）</h2>
+    <pre style="white-space: pre-wrap; word-break: break-all;">{{ raw_payload_json }}</pre>
+  </div>
+{% endif %}
+{% endblock %}

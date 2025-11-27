@@ -1,0 +1,73 @@
+{# Path: django/core/templates/core/signup.html #}
+{% extends "base.html" %}
+
+{% block title %}新規ユーザー登録 - A15{% endblock %}
+
+{% block content %}
+<div class="card">
+  <h1>新規ユーザー登録</h1>
+  <p class="muted mt-2">
+    AI生成物著作権リスクチェックシステムを利用するための一般ユーザーアカウントを作成します。<br>
+    ※ 原則として学内メールアドレス（@bunkyo.ac.jp）での登録を想定しています。
+  </p>
+
+  {# メッセージ（登録成功・失敗など） #}
+  {% if messages %}
+    <div class="mt-2">
+      {% for message in messages %}
+        <div class="alert {{ message.tags }}">
+          {{ message }}
+        </div>
+      {% endfor %}
+    </div>
+  {% endif %}
+
+  <form method="post" class="mt-3" novalidate>
+    {% csrf_token %}
+
+    {# フォーム全体のエラー（パスワード不一致など） #}
+    {% if form.non_field_errors %}
+      <div class="alert err mb-3">
+        {{ form.non_field_errors }}
+      </div>
+    {% endif %}
+
+    {# フィールドを順番に表示（UserCreationForm / カスタムフォーム両対応） #}
+    {% for field in form %}
+      <div class="mb-3">
+        <label for="{{ field.id_for_label }}">{{ field.label }}</label>
+        {{ field }}
+        {% if field.help_text %}
+          <p class="small muted">{{ field.help_text|safe }}</p>
+        {% endif %}
+        {% if field.errors %}
+          <div class="alert err mt-1">
+            {{ field.errors }}
+          </div>
+        {% endif %}
+      </div>
+    {% endfor %}
+
+    {# 登録後の遷移先を指定する hidden（ビュー側から next が渡されている場合） #}
+    {% if next %}
+      <input type="hidden" name="next" value="{{ next }}">
+    {% endif %}
+
+    <button type="submit" class="btn primary">
+      登録する
+    </button>
+  </form>
+
+  <div class="mt-4">
+    <p class="muted">
+      すでにアカウントをお持ちの方は
+      <a href="{% url 'login' %}">ログインページ</a>
+      へ。
+    </p>
+    <p class="muted mt-1">
+      広報担当・管理者アカウントの発行は、システム管理者経由で行います。
+      管理者の方は <a href="{% url 'admin_login' %}">管理者ログイン</a> からお入りください。
+    </p>
+  </div>
+</div>
+{% endblock %}

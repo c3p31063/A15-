@@ -1,0 +1,212 @@
+{# django/core/templates/core/dashboard.html #}
+{% extends "core/base.html" %}
+
+{% block title %}ダッシュボード{% endblock %}
+
+{% block content %}
+<div class="container mt-4">
+    <h1 class="mb-3">ダッシュボード</h1>
+
+    <p class="text-muted">
+        ここでは、あなたが実行した画像・テキストの著作権チェック状況を確認できます。
+    </p>
+
+    {# 集計カード #}
+    <div class="row mb-4">
+        <div class="col-md-3 col-6 mb-3">
+            <div class="card h-100">
+                <div class="card-body text-center">
+                    <h6 class="card-title text-muted">合計チェック件数</h6>
+                    <p class="display-6 mb-0">{{ total_count }}</p>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3 col-6 mb-3">
+            <div class="card h-100">
+                <div class="card-body text-center">
+                    <h6 class="card-title text-muted">画像チェック</h6>
+                    <p class="display-6 mb-0">{{ image_count }}</p>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3 col-6 mb-3">
+            <div class="card h-100">
+                <div class="card-body text-center">
+                    <h6 class="card-title text-muted">テキストチェック</h6>
+                    <p class="display-6 mb-0">{{ text_count }}</p>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3 col-6 mb-3">
+            <div class="card h-100">
+                <div class="card-body text-center">
+                    <h6 class="card-title text-muted">平均リスクスコア</h6>
+                    <p class="display-6 mb-0">
+                        {% if total_count %}
+                            {{ avg_score|floatformat:1 }}
+                        {% else %}
+                            -
+                        {% endif %}
+                    </p>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    {# アクションカード #}
+    <div class="row mb-4">
+        <div class="col-md-4 mb-3">
+            <div class="card h-100 border-primary">
+                <div class="card-body d-flex flex-column">
+                    <h5 class="card-title">画像の著作権チェック</h5>
+                    <p class="card-text text-muted">
+                        生成AI画像や写真素材などの著作権リスクを確認します。
+                    </p>
+                    <div class="mt-auto">
+                        <a href="{% url 'core:image_check' %}" class="btn btn-primary w-100">
+                            画像をチェックする
+                        </a>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-4 mb-3">
+            <div class="card h-100 border-success">
+                <div class="card-body d-flex flex-column">
+                    <h5 class="card-title">テキストの著作権チェック</h5>
+                    <p class="card-text text-muted">
+                        原稿・記事・説明文などの類似度やAI生成らしさを確認します。
+                    </p>
+                    <div class="mt-auto">
+                        <a href="{% url 'core:text_check' %}" class="btn btn-success w-100">
+                            テキストをチェックする
+                        </a>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-4 mb-3">
+            <div class="card h-100 border-secondary">
+                <div class="card-body d-flex flex-column">
+                    <h5 class="card-title">履歴の確認</h5>
+                    <p class="card-text text-muted">
+                        過去にチェックした履歴やリスクスコアをまとめて確認できます。
+                    </p>
+                    <div class="mt-auto">
+                        <a href="{% url 'core:my_logs' %}" class="btn btn-outline-secondary w-100">
+                            チェック履歴を見る
+                        </a>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    {# 最近のジョブ一覧 #}
+    <div class="card mb-4">
+        <div class="card-header d-flex justify-content-between align-items-center">
+            <span>最近のチェック履歴</span>
+            <a href="{% url 'core:my_logs' %}" class="small">すべての履歴を見る</a>
+        </div>
+        <div class="card-body p-0">
+            {% if recent_jobs %}
+                <div class="table-responsive">
+                    <table class="table table-striped table-hover mb-0 align-middle">
+                        <thead class="table-light">
+                            <tr>
+                                <th scope="col">日時</th>
+                                <th scope="col">種別</th>
+                                <th scope="col">対象</th>
+                                <th scope="col">リスクスコア</th>
+                                <th scope="col">リスクレベル</th>
+                                <th scope="col">ステータス</th>
+                                <th scope="col">詳細</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for job in recent_jobs %}
+                                <tr>
+                                    <td>{{ job.created_at|date:"Y-m-d H:i:s" }}</td>
+                                    <td>
+                                        {% if job.kind == "image" %}
+                                            <span class="badge bg-primary">画像</span>
+                                        {% elif job.kind == "text" %}
+                                            <span class="badge bg-success">テキスト</span>
+                                        {% elif job.kind == "compat" %}
+                                            <span class="badge bg-info text-dark">互換性</span>
+                                        {% else %}
+                                            <span class="badge bg-secondary">{{ job.kind }}</span>
+                                        {% endif %}
+                                    </td>
+                                    <td>
+                                        {% if job.input_filename %}
+                                            <span title="{{ job.input_filename }}">
+                                                {{ job.short_filename|default:job.input_filename }}
+                                            </span>
+                                        {% else %}
+                                            <span class="text-muted">
+                                                （テキスト／プロンプト）
+                                            </span>
+                                        {% endif %}
+                                    </td>
+                                    <td>
+                                        {% if job.risk_score is not None %}
+                                            {{ job.risk_score|floatformat:1 }}
+                                        {% else %}
+                                            <span class="text-muted">-</span>
+                                        {% endif %}
+                                    </td>
+                                    <td>
+                                        {% if job.risk_level == "高" %}
+                                            <span class="badge bg-danger">高</span>
+                                        {% elif job.risk_level == "中" %}
+                                            <span class="badge bg-warning text-dark">中</span>
+                                        {% elif job.risk_level == "低" %}
+                                            <span class="badge bg-success">低</span>
+                                        {% elif job.risk_level %}
+                                            <span class="badge bg-secondary">{{ job.risk_level }}</span>
+                                        {% else %}
+                                            <span class="text-muted">未評価</span>
+                                        {% endif %}
+                                    </td>
+                                    <td>
+                                        {% if job.status == "done" %}
+                                            <span class="badge bg-success">完了</span>
+                                        {% elif job.status == "running" %}
+                                            <span class="badge bg-info text-dark">実行中</span>
+                                        {% elif job.status == "pending" %}
+                                            <span class="badge bg-secondary">待機</span>
+                                        {% elif job.status == "error" or job.status == "failed" %}
+                                            <span class="badge bg-danger">エラー</span>
+                                        {% else %}
+                                            <span class="badge bg-light text-dark">{{ job.status }}</span>
+                                        {% endif %}
+                                    </td>
+                                    <td>
+                                        <a href="{% url 'core:job_detail' job.job_id %}"
+                                           class="btn btn-sm btn-outline-primary">
+                                            詳細
+                                        </a>
+                                    </td>
+                                </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            {% else %}
+                <div class="p-3">
+                    <p class="mb-0 text-muted">まだチェック履歴がありません。まずは画像またはテキストのチェックを実行してください。</p>
+                </div>
+            {% endif %}
+        </div>
+    </div>
+
+    {% if user.is_staff or user.is_superuser %}
+        <div class="text-end">
+            <a href="{% url 'core:admin_dashboard' %}" class="btn btn-outline-dark btn-sm">
+                管理者ダッシュボードへ
+            </a>
+        </div>
+    {% endif %}
+</div>
+{% endblock %}

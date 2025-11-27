@@ -1,0 +1,265 @@
+{# django/core/templates/core/image_check.html #}
+{% extends "core/base.html" %}
+
+{% block title %}画像の著作権チェック{% endblock %}
+
+{% block content %}
+<div class="container mt-4">
+    <h1 class="mb-3">画像の著作権チェック</h1>
+
+    <p class="text-muted">
+        生成AI画像や写真素材などの著作権リスクを、外部API（逆画像検索・類似度・モデレーション）を用いて総合的に判定します。<br>
+        チェックした履歴は「履歴」画面からいつでも確認できます。
+    </p>
+
+    {# 入力フォーム #}
+    <div class="card mb-4">
+        <div class="card-header">
+            チェック対象画像のアップロード
+        </div>
+        <div class="card-body">
+            <form method="post" enctype="multipart/form-data" novalidate>
+                {% csrf_token %}
+
+                <div class="mb-3">
+                    <label for="id_image" class="form-label">画像ファイル <span class="text-danger">*</span></label>
+                    <input type="file" name="image" class="form-control" id="id_image" accept="image/*" required>
+                    <div class="form-text">
+                        JPEG / PNG などの画像ファイルを選択してください。
+                    </div>
+                </div>
+
+                <div class="mb-3">
+                    <label for="id_prompt" class="form-label">
+                        生成時のプロンプト / 補足説明（任意）
+                    </label>
+                    <textarea name="prompt" id="id_prompt" rows="4" class="form-control"
+                              placeholder="画像生成AIを使用した場合、そのときのプロンプトや、画像の出典・使用目的などを記入してください（任意）。"></textarea>
+                </div>
+
+                <div class="d-flex justify-content-between align-items-center">
+                    <small class="text-muted">
+                        送信された画像は著作権リスク判定とログ保存の目的でのみ利用されます。
+                    </small>
+                    <button type="submit" class="btn btn-primary">
+                        チェックを実行する
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    {# チェック結果の表示 #}
+    {% if result %}
+        <div class="card mb-4">
+            <div class="card-header">
+                チェック結果
+            </div>
+            <div class="card-body">
+                {# 概要 #}
+                <div class="row mb-3">
+                    <div class="col-md-4 mb-3">
+                        <h6 class="text-muted">リスクスコア</h6>
+                        {% if result.risk_score is not None %}
+                            <p class="h3 mb-0">{{ result.risk_score|floatformat:1 }}</p>
+                            <small class="text-muted">0〜100（高いほどリスクが高い）</small>
+                        {% else %}
+                            <p class="mb-0 text-muted">算出されませんでした。</p>
+                        {% endif %}
+                    </div>
+                    <div class="col-md-4 mb-3">
+                        <h6 class="text-muted">リスクレベル</h6>
+                        {% if result.risk_level == "高" %}
+                            <span class="badge bg-danger fs-5">高</span>
+                        {% elif result.risk_level == "中" %}
+                            <span class="badge bg-warning text-dark fs-5">中</span>
+                        {% elif result.risk_level == "低" %}
+                            <span class="badge bg-success fs-5">低</span>
+                        {% elif result.risk_level %}
+                            <span class="badge bg-secondary fs-5">{{ result.risk_level }}</span>
+                        {% else %}
+                            <span class="text-muted">未評価</span>
+                        {% endif %}
+                    </div>
+                    <div class="col-md-4 mb-3">
+                        <h6 class="text-muted">ジョブID</h6>
+                        <p class="mb-1">
+                            {% if job %}
+                                <code>{{ job.job_id }}</code>
+                            {% else %}
+                                <code>{{ result.job_id|default:"(未保存)" }}</code>
+                            {% endif %}
+                        </p>
+                        {% if job %}
+                            <a href="{% url 'core:job_detail' job.job_id %}" class="btn btn-sm btn-outline-primary">
+                                詳細ビューを開く
+                            </a>
+                        {% endif %}
+                    </div>
+                </div>
+
+                {# ファクター内訳 #}
+                {% if result.risk_factors %}
+                    <hr>
+                    <h5 class="mb-3">リスクスコアの内訳</h5>
+                    <div class="row">
+                        <div class="col-md-6 mb-3">
+                            <table class="table table-sm align-middle mb-0">
+                                <tbody>
+                                    {% if result.risk_factors.reverse_image_max_score is not None %}
+                                        <tr>
+                                            <th scope="row" style="width: 40%;">逆画像検索 最大スコア</th>
+                                            <td>{{ result.risk_factors.reverse_image_max_score|floatformat:1 }}</td>
+                                        </tr>
+                                    {% endif %}
+                                    {% if result.risk_factors.prompt_similarity is not None %}
+                                        <tr>
+                                            <th scope="row">プロンプト類似度</th>
+                                            <td>{{ result.risk_factors.prompt_similarity|floatformat:1 }}</td>
+                                        </tr>
+                                    {% endif %}
+                                    {% if result.risk_factors.moderation_score is not None %}
+                                        <tr>
+                                            <th scope="row">モデレーションスコア</th>
+                                            <td>{{ result.risk_factors.moderation_score|floatformat:1 }}</td>
+                                        </tr>
+                                    {% endif %}
+                                    {% if result.risk_factors.manual_adjustment %}
+                                        <tr>
+                                            <th scope="row">手動補正</th>
+                                            <td>{{ result.risk_factors.manual_adjustment|floatformat:1 }}</td>
+                                        </tr>
+                                    {% endif %}
+                                </tbody>
+                            </table>
+                        </div>
+                        <div class="col-md-6 mb-3">
+                            <p class="text-muted small mb-0">
+                                ※ スコアは「逆画像検索」「プロンプト類似度」「モデレーション」の重み付き合算で計算されています。<br>
+                                詳細なロジックはシステム仕様書（risk_score.py）を参照してください。
+                            </p>
+                        </div>
+                    </div>
+                {% endif %}
+
+                {# 類似画像一覧（あれば） #}
+                {% if result.similar_images %}
+                    <hr>
+                    <h5 class="mb-3">類似画像候補</h5>
+                    <div class="table-responsive">
+                        <table class="table table-sm table-hover align-middle mb-0">
+                            <thead class="table-light">
+                                <tr>
+                                    <th scope="col">順位</th>
+                                    <th scope="col">サムネイル</th>
+                                    <th scope="col">スコア</th>
+                                    <th scope="col">ソース</th>
+                                    <th scope="col">リンク</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for sim in result.similar_images %}
+                                    <tr>
+                                        <td>{{ sim.rank|default:forloop.counter }}</td>
+                                        <td style="width: 140px;">
+                                            {% if sim.thumbnail %}
+                                                <img src="{{ sim.thumbnail }}" alt="similar thumbnail"
+                                                     class="img-fluid img-thumbnail">
+                                            {% else %}
+                                                <span class="text-muted">-</span>
+                                            {% endif %}
+                                        </td>
+                                        <td>
+                                            {% if sim.match_score is not None %}
+                                                {{ sim.match_score|floatformat:1 }}
+                                            {% else %}
+                                                <span class="text-muted">-</span>
+                                            {% endif %}
+                                        </td>
+                                        <td>
+                                            {% if sim.source %}
+                                                <span class="badge bg-secondary">{{ sim.source }}</span>
+                                            {% else %}
+                                                <span class="text-muted">unknown</span>
+                                            {% endif %}
+                                        </td>
+                                        <td>
+                                            {% if sim.url %}
+                                                <a href="{{ sim.url }}" class="btn btn-sm btn-outline-primary"
+                                                   target="_blank" rel="noopener noreferrer">
+                                                    開く
+                                                </a>
+                                            {% else %}
+                                                <span class="text-muted">-</span>
+                                            {% endif %}
+                                        </td>
+                                    </tr>
+                                {% empty %}
+                                    <tr>
+                                        <td colspan="5" class="text-muted">
+                                            類似画像は検出されませんでした。
+                                        </td>
+                                    </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                {% endif %}
+
+                {# エビデンス（ページ・ベストゲスなど） #}
+                {% if result.evidences %}
+                    <hr>
+                    <h5 class="mb-3">参考ページ / エビデンス</h5>
+                    <ul class="list-group mb-0">
+                        {% for ev in result.evidences %}
+                            <li class="list-group-item">
+                                <div class="d-flex justify-content-between align-items-start">
+                                    <div>
+                                        <div class="fw-bold">
+                                            {% if ev.title %}
+                                                {{ ev.title }}
+                                            {% else %}
+                                                （タイトルなし）
+                                            {% endif %}
+                                        </div>
+                                        {% if ev.url %}
+                                            <a href="{{ ev.url }}" target="_blank" rel="noopener noreferrer">
+                                                {{ ev.url }}
+                                            </a>
+                                        {% endif %}
+                                        {% if ev.type %}
+                                            <div class="mt-1">
+                                                <span class="badge bg-light text-muted">
+                                                    {{ ev.type }}
+                                                </span>
+                                            </div>
+                                        {% endif %}
+                                    </div>
+                                </div>
+                            </li>
+                        {% endfor %}
+                    </ul>
+                {% endif %}
+
+                {# デバッグ情報（開発時のみざっくり表示） #}
+                {% if result.debug %}
+                    <hr>
+                    <details>
+                        <summary class="text-muted">デバッグ情報を表示</summary>
+                        <pre class="mt-2 small bg-light p-2 rounded"><code>{{ result.debug|safe }}</code></pre>
+                    </details>
+                {% endif %}
+            </div>
+        </div>
+    {% endif %}
+
+    <div class="mt-3">
+        <a href="{% url 'core:dashboard' %}" class="btn btn-outline-secondary">
+            ダッシュボードに戻る
+        </a>
+        <a href="{% url 'core:my_logs' %}" class="btn btn-outline-primary ms-2">
+            チェック履歴を見る
+        </a>
+    </div>
+</div>
+{% endblock %}
